@@ -16,7 +16,6 @@ import {
   Handshake,
   CalendarDays,
   Package,
-  FileCheck,
   FileText,
   Eye,
   EyeOff,
@@ -105,7 +104,7 @@ const Layout: React.FC<LayoutProps> = ({
               <button 
                 key={item.id} 
                 onClick={() => { setActiveTab(item.id); setIsSidebarOpen(false); }} 
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-none' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5'}`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5'}`}
               >
                 <item.icon size={20} className={activeTab === item.id ? 'text-white' : 'text-slate-400'} /> 
                 {item.label}

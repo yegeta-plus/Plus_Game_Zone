@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout.tsx';
 import Dashboard from './components/Dashboard.tsx';
 import EqubTracker from './components/EqubTracker.tsx';
@@ -18,9 +18,7 @@ import EqubModal from './components/EqubModal.tsx';
 import SecurityOverlay from './components/SecurityOverlay.tsx';
 import ChatCenter from './components/ChatCenter.tsx';
 import ConfirmationModal from './components/ConfirmationModal.tsx';
-import OptionsManager from './components/OptionsManager.tsx';
 import UsersManager from './components/UsersManager.tsx';
-import AdminReport from './components/AdminReport.tsx';
 import BrandLogo from './components/BrandLogo.tsx';
 import JoystickMenu from './components/JoystickMenu.tsx';
 import CameraScanner from './components/CameraScanner.tsx';
@@ -31,7 +29,6 @@ import {
   EqubGroup, 
   TransactionType,
   PaymentMethod,
-  ExpenseCategory,
   WalletBalances,
   Goal,
   Loan,
@@ -45,47 +42,26 @@ import {
 } from './types.ts';
 import { MOCK_USERS, MOCK_EQUB_GROUPS, MOCK_TRANSACTIONS, MOCK_ASSETS } from './constants.ts';
 import { 
-  ShieldCheck, CheckCircle, AlertCircle, LogOut, Quote, Gamepad2, ArrowRight, Sun, Moon, Sparkles, RefreshCcw, Key, Mail, Send, Globe, Cpu, Terminal, Copy, ExternalLink, ArrowLeft
+  CheckCircle, AlertCircle, ArrowLeft
 } from 'lucide-react';
-import { generateGamingImage, getFinancialAdvice } from './services/geminiService.ts';
-
-const GAMING_QUOTES = [
-  { text: "It's dangerous to go alone! Take this.", source: "The Legend of Zelda" },
-  { text: "The right man in the wrong place can make all the difference in the world.", source: "Half-Life 2" },
-  { text: "Stay awhile and listen!", source: "Diablo II" },
-  { text: "What is a man? A miserable little pile of secrets.", source: "Castlevania: SotN" },
-  { text: "War. War never changes.", source: "Fallout" },
-  { text: "Even in the darkest of times, there is always hope.", source: "Dragon Age" },
-  { text: "A man chooses, a slave obeys.", source: "BioShock" },
-  { text: "Nothing is true, everything is permitted.", source: "Assassin's Creed" },
-  { text: "Wake up, Mr. Freeman. Wake up and smell the ashes.", source: "Half-Life 2" },
-  { text: "Praise the Sun!", source: "Dark Souls" }
-];
+import { getFinancialAdvice } from './services/geminiService.ts';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [showQuote, setShowQuote] = useState(false);
-  const [selectedQuote, setSelectedQuote] = useState(GAMING_QUOTES[0]);
   const [isLocked, setIsLocked] = useState(false);
   const [isMasked, setIsMasked] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
-
   const [showForgotPass, setShowForgotPass] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [isSendingRecovery, setIsSendingRecovery] = useState(false);
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    return (localStorage.getItem('plus_theme') as 'light' | 'dark') || 'light';
+    return (localStorage.getItem('plus_theme') as 'light' | 'dark') || 'dark';
   });
-  const [isThemeTransitioning, setIsThemeTransitioning] = useState(false);
-  const [transitionImage, setTransitionImage] = useState<string | null>(null);
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   
-  // App Data State with robust fallbacks
+  // App Data State
   const [users, setUsers] = useState<User[]>(() => {
     const stored = localStorage.getItem('plus_users');
     const parsed = stored ? JSON.parse(stored) : [];
@@ -105,10 +81,10 @@ const App: React.FC = () => {
     const stored = localStorage.getItem('plus_balances');
     const parsed = stored ? JSON.parse(stored) : null;
     return parsed || {
-      [PaymentMethod.CASH]: 5000,
-      [PaymentMethod.TELEBIRR]: 12400,
-      [PaymentMethod.CBE]: 25000,
-      [PaymentMethod.EBIRR]: 1500,
+      [PaymentMethod.CASH]: 15000,
+      [PaymentMethod.TELEBIRR]: 42400,
+      [PaymentMethod.CBE]: 85000,
+      [PaymentMethod.EBIRR]: 5500,
     };
   });
   const [assets, setAssets] = useState<Asset[]>(() => {
@@ -154,7 +130,9 @@ const App: React.FC = () => {
     localStorage.setItem('plus_reports', JSON.stringify(sentReports));
     localStorage.setItem('plus_activity_logs', JSON.stringify(activityLogs));
     localStorage.setItem('plus_approval_requests', JSON.stringify(approvalRequests));
-  }, [users, transactions, balances, equbs, assets, loans, goals, investments, plannedPayments, sentReports, activityLogs, approvalRequests]);
+    localStorage.setItem('plus_theme', theme);
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [users, transactions, balances, equbs, assets, loans, goals, investments, plannedPayments, sentReports, activityLogs, approvalRequests, theme]);
 
   const notify = (message: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message, type });
@@ -172,7 +150,6 @@ const App: React.FC = () => {
       details
     };
     setActivityLogs(prev => [newLog, ...prev]);
-    notify(action);
   };
 
   const handleJoystickAction = async (action: 'ADD_SALES' | 'ADD_EXPENSE' | 'AI_INSIGHT' | 'SCAN') => {
@@ -204,13 +181,44 @@ const App: React.FC = () => {
     }
   };
 
-  const handleScannerParsed = (data: any) => {
-    handleTransactionSubmit({
-      ...data,
-      note: `Scanned: ${data.vendor || 'Receipt'}`,
-      date: new Date().toISOString().split('T')[0]
-    });
-    setShowScanner(false);
+  const handleTransactionSubmit = (formData: any) => {
+    const amount = parseFloat(formData.amount);
+    if (editingTransaction) {
+      setTransactions(prev => prev.map(t => t.id === editingTransaction.id ? { ...t, ...formData, amount } : t));
+      logAction('Updated Transaction', `${formData.note} - ${amount} ETB`);
+    } else {
+      const newTx: Transaction = {
+        id: Math.random().toString(36).substr(2, 9),
+        amount,
+        type: formData.type,
+        method: formData.method,
+        category: formData.category,
+        note: formData.note,
+        vendor: formData.vendor || 'Zone Floor',
+        date: formData.date || new Date().toISOString(),
+        isAutoGenerated: false
+      };
+      setTransactions(prev => [newTx, ...prev]);
+      logAction(`Recorded ${formData.type}`, `${formData.note} - ${amount} ETB`);
+    }
+    setShowTransactionModal(false);
+    setEditingTransaction(null);
+    notify("Ledger Updated");
+  };
+
+  const handleLoanPay = (loanId: string, amount: number) => {
+    logAction('Paid Loan Installment', `${loanId} - ${amount} ETB`);
+    notify("Repayment Processed");
+  };
+
+  const handleEqubSettle = (group: EqubGroup) => {
+    logAction('Equb Contribution', `${group.name} - Round ${group.currentRound}`);
+    notify("Contribution Recorded");
+  };
+
+  const handleTransfer = (from: PaymentMethod, to: PaymentMethod, amount: number) => {
+    logAction('Balance Swap', `${from} to ${to} - ${amount} ETB`);
+    notify("Swap Successful");
   };
 
   const requestDeleteTransaction = (id: string) => {
@@ -220,113 +228,14 @@ const App: React.FC = () => {
     setConfirmModal({
       isOpen: true,
       title: 'Delete Transaction',
-      message: `Are you sure you want to permanently erase the record "${tx.note || 'General'}" of ${tx.amount} ETB? This will affect your current wallet balances.`,
+      message: `Are you sure you want to permanently erase the record "${tx.note || 'General'}" of ${tx.amount} ETB?`,
       type: 'danger',
       onConfirm: () => {
-        setBalances(prev => {
-          const modifier = tx.type === TransactionType.INCOME ? -tx.amount : tx.amount;
-          return { ...prev, [tx.method]: (prev[tx.method] || 0) + modifier };
-        });
         setTransactions(prev => prev.filter(t => t.id !== id));
         logAction('Deleted Transaction', `${tx.note} - ${tx.amount} ETB`);
+        notify("Record Removed");
       }
     });
-  };
-
-  const handleToggleTheme = async () => {
-    const nextTheme = theme === 'light' ? 'dark' : 'light';
-    const randomQuote = GAMING_QUOTES[Math.floor(Math.random() * GAMING_QUOTES.length)];
-    setSelectedQuote(randomQuote);
-    setIsThemeTransitioning(true);
-    setTransitionImage(null);
-    setIsGeneratingImage(true);
-    setTheme(nextTheme);
-    const imageUrl = await generateGamingImage(randomQuote.text);
-    setTransitionImage(imageUrl);
-    setIsGeneratingImage(false);
-  };
-
-  const handleTransactionSubmit = (formData: any) => {
-    const amount = parseFloat(formData.amount);
-    if (editingTransaction) {
-      setBalances(prev => {
-        const modifier = editingTransaction.type === TransactionType.INCOME ? -editingTransaction.amount : editingTransaction.amount;
-        return { ...prev, [editingTransaction.method]: (prev[editingTransaction.method] || 0) + modifier };
-      });
-      setBalances(prev => {
-        const modifier = formData.type === TransactionType.INCOME ? amount : -amount;
-        return { ...prev, [formData.method]: (prev[formData.method] || 0) + modifier };
-      });
-      setTransactions(prev => prev.map(t => t.id === editingTransaction.id ? { ...t, ...formData, amount } : t));
-      logAction('Updated Transaction', `${formData.note} - ${amount} ETB`);
-    } else {
-      const newTx: Transaction = {
-        id: Math.random().toString(36).substr(2, 9),
-        amount: amount,
-        type: formData.type,
-        method: formData.method,
-        category: formData.category,
-        note: formData.note,
-        vendor: formData.vendor || 'Floor',
-        date: formData.date || new Date().toISOString(),
-        isAutoGenerated: false
-      };
-      setTransactions(prev => [newTx, ...prev]);
-      setBalances(prev => {
-        const modifier = formData.type === TransactionType.INCOME ? amount : -amount;
-        return { ...prev, [formData.method]: (prev[formData.method] || 0) + modifier };
-      });
-      logAction(`Recorded ${formData.type}`, `${formData.note} - ${amount} ETB`);
-    }
-    setShowTransactionModal(false);
-    setEditingTransaction(null);
-  };
-
-  const handleEqubSubmit = (data: EqubGroup) => {
-    if (editingEqub) {
-      setEqubs(prev => prev.map(e => e.id === editingEqub.id ? data : e));
-      logAction('Updated Equb Circle', data.name);
-    } else {
-      setEqubs(prev => [data, ...prev]);
-      logAction('Created Equb Circle', data.name);
-    }
-    setShowEqubModal(false);
-    setEditingEqub(null);
-  };
-
-  const handleLoanSubmit = (data: Loan) => {
-    if (editingLoan) {
-      setLoans(prev => prev.map(l => l.id === editingLoan.id ? data : l));
-      logAction('Updated Loan Contract', data.loanName);
-    } else {
-      setLoans(prev => [data, ...prev]);
-      logAction('Registered New Loan', data.loanName);
-    }
-    setShowLoanModal(false);
-    setEditingLoan(null);
-  };
-
-  const handleGoalSubmit = (data: Goal) => {
-    if (editingGoal) {
-      setGoals(prev => prev.map(g => g.id === editingGoal.id ? data : g));
-      logAction('Updated Financial Goal', data.title);
-    } else {
-      setGoals(prev => [data, ...prev]);
-      logAction('Established New Goal', data.title);
-    }
-    setShowGoalModal(false);
-    setEditingGoal(null);
-  };
-
-  const handleForgotPassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSendingRecovery(true);
-    setTimeout(() => {
-      setIsSendingRecovery(false);
-      setShowForgotPass(false);
-      notify("Recovery signal sent to " + forgotEmail);
-      setForgotEmail('');
-    }, 1500);
   };
 
   if (!currentUser) {
@@ -347,10 +256,7 @@ const App: React.FC = () => {
               const normalizedEmail = loginEmail.trim().toLowerCase();
               const user = users.find(u => u.email.toLowerCase() === normalizedEmail && u.pin === password);
               if (user) {
-                const randomQuote = GAMING_QUOTES[Math.floor(Math.random() * GAMING_QUOTES.length)];
-                setSelectedQuote(randomQuote);
                 setCurrentUser(user);
-                setShowQuote(true);
                 setAuthError('');
               } else {
                 setAuthError('Access Denied: Invalid Credentials');
@@ -358,7 +264,7 @@ const App: React.FC = () => {
             }} className="space-y-6">
               <input 
                 type="email" required placeholder="PARTNER EMAIL" 
-                className="w-full py-5 px-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl text-xl text-center outline-none font-black text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600" 
+                className="w-full py-5 px-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl text-xl text-center outline-none font-black text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 uppercase" 
                 value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} 
               />
               <input 
@@ -366,37 +272,15 @@ const App: React.FC = () => {
                 className="w-full py-5 px-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl text-xl text-center outline-none font-black text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 tracking-widest" 
                 value={password} onChange={(e) => setPassword(e.target.value.replace(/\D/g, ''))} 
               />
-              {authError && <p className="text-xs font-bold text-rose-500 text-center animate-shake">{authError}</p>}
+              {authError && <p className="text-xs font-bold text-rose-500 text-center">{authError}</p>}
               <button type="submit" className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95">Authenticate</button>
-              <button 
-                type="button" 
-                onClick={() => setShowForgotPass(true)} 
-                className="w-full text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest hover:text-indigo-600 transition-colors"
-              >
-                Forgot Access PIN?
-              </button>
+              <button type="button" onClick={() => setShowForgotPass(true)} className="w-full text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest hover:text-indigo-600 transition-colors">Forgot Access PIN?</button>
             </form>
           ) : (
-            <form onSubmit={handleForgotPassword} className="space-y-6">
-               <div className="flex items-center gap-2 mb-4">
-                 <button 
-                   type="button" 
-                   onClick={() => setShowForgotPass(false)} 
-                   className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
-                 >
-                   <ArrowLeft size={20} />
-                 </button>
-                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Return to Login</span>
-               </div>
-               <input 
-                 type="email" required placeholder="RECOVERY EMAIL" 
-                 className="w-full py-5 px-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl text-xl text-center font-black text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none" 
-                 value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} 
-               />
-               <button type="submit" disabled={isSendingRecovery} className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50">
-                 {isSendingRecovery ? 'Sending Signal...' : 'Send Signal'}
-               </button>
-            </form>
+            <div className="text-center">
+               <button onClick={() => setShowForgotPass(false)} className="flex items-center gap-2 mb-8 text-slate-400 font-black text-[10px] uppercase tracking-widest"><ArrowLeft size={16} /> Back</button>
+               <p className="text-sm font-medium dark:text-slate-400 mb-6 leading-relaxed">Please contact the Managing Partner (Super Admin) to retrieve or reset your authorized access credentials for this terminal.</p>
+            </div>
           )}
         </div>
       </div>
@@ -405,69 +289,74 @@ const App: React.FC = () => {
 
   return (
     <>
-      {isLocked && <SecurityOverlay onUnlock={(enteredPin) => { if (currentUser && enteredPin === currentUser.pin) setIsLocked(false); else setAuthError('Invalid PIN'); }} error={authError} />}
-      <ConfirmationModal isOpen={confirmModal.isOpen} onClose={() => setConfirmModal(prev => ({...prev, isOpen: false}))} onConfirm={confirmModal.onConfirm} title={confirmModal.title} message={confirmModal.message} type={confirmModal.type} />
-      
-      {showTransactionModal && <TransactionModal isOpen={showTransactionModal} onClose={() => { setShowTransactionModal(false); setEditingTransaction(null); }} onSubmit={handleTransactionSubmit} initialType={modalType} editingTransaction={editingTransaction} />}
-      {showEqubModal && <EqubModal isOpen={showEqubModal} onClose={() => { setShowEqubModal(false); setEditingEqub(null); }} onSubmit={handleEqubSubmit} editingEqub={editingEqub} />}
-      {showLoanModal && <LoanModal isOpen={showLoanModal} onClose={() => { setShowLoanModal(false); setEditingLoan(null); }} onSubmit={handleLoanSubmit} editingLoan={editingLoan} />}
-      {showGoalModal && <GoalModal isOpen={showGoalModal} onClose={() => { setShowGoalModal(false); setEditingGoal(null); }} onSubmit={handleGoalSubmit} editingGoal={editingGoal} />}
-      {showScanner && <CameraScanner onClose={() => setShowScanner(false)} onParsed={handleScannerParsed} />}
-
-      <JoystickMenu onAction={handleJoystickAction} />
-      
       <Layout 
         activeTab={activeTab} setActiveTab={setActiveTab} 
         userRole={currentUser.role} userName={currentUser.name} 
         onLogout={() => setCurrentUser(null)} isMasked={isMasked}
         onToggleMask={() => setIsMasked(!isMasked)} onLock={() => setIsLocked(true)}
-        theme={theme} onToggleTheme={handleToggleTheme}
+        theme={theme} onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
       >
         <div className="max-w-7xl mx-auto space-y-8 pb-32 relative text-left">
           {notification && (
-            <div className={`fixed top-24 right-8 z-[200] px-10 py-6 rounded-[2.5rem] shadow-2xl bg-white/90 backdrop-blur-md flex items-center gap-4 animate-in slide-in-from-right duration-300 ${notification.type === 'success' ? 'text-indigo-700' : 'text-rose-600'}`}>
+            <div className={`fixed top-24 right-8 z-[200] px-10 py-6 rounded-[2.5rem] shadow-2xl bg-white/90 dark:bg-slate-800/90 backdrop-blur-md flex items-center gap-4 animate-in slide-in-from-right duration-300 ${notification.type === 'success' ? 'text-indigo-700 dark:text-indigo-300' : 'text-rose-600'}`}>
               {notification.type === 'success' ? <CheckCircle size={22} /> : <AlertCircle size={22} />}
-              <p className="font-black tracking-tight">{notification.message}</p>
+              <p className="font-black tracking-tight uppercase text-[10px]">{notification.message}</p>
             </div>
           )}
 
           {activeTab === 'dashboard' && <Dashboard transactions={transactions} isMasked={isMasked} />}
-          
           {activeTab === 'income' && <TransactionList type={TransactionType.INCOME} transactions={transactions} userRole={currentUser.role} onAdd={() => { setModalType(TransactionType.INCOME); setEditingTransaction(null); setShowTransactionModal(true); }} onDelete={requestDeleteTransaction} onEdit={(tx) => { setEditingTransaction(tx); setModalType(TransactionType.INCOME); setShowTransactionModal(true); }} />}
-          
           {activeTab === 'expense' && <TransactionList type={TransactionType.EXPENSE} transactions={transactions} userRole={currentUser.role} onAdd={() => { setModalType(TransactionType.EXPENSE); setEditingTransaction(null); setShowTransactionModal(true); }} onDelete={requestDeleteTransaction} onEdit={(tx) => { setEditingTransaction(tx); setModalType(TransactionType.EXPENSE); setShowTransactionModal(true); }} />}
-
-          {activeTab === 'assets' && <AssetsManager assets={assets} onAdd={(a) => { setAssets(p => [a, ...p]); logAction('Added Asset', a.name); }} onUpdate={(a) => { setAssets(p => p.map(i => i.id === a.id ? a : i)); logAction('Updated Asset', a.name); }} onDelete={(id) => setAssets(p => p.filter(i => i.id !== id))} isAdmin={currentUser.role !== UserRole.MEMBER} />}
-          
-          {activeTab === 'wallet' && <WalletView balances={balances} transactions={transactions} onTransfer={(f,t,a) => logAction('Balance Transfer', `${f} to ${t}`)} onAddFunds={() => {}} />}
-          
-          {activeTab === 'equb' && <EqubTracker groups={equbs} isAdmin={currentUser.role !== UserRole.MEMBER} onAdd={() => { setEditingEqub(null); setShowEqubModal(true); }} onSettle={(g) => logAction('Settle Equb')} onEdit={(e) => { setEditingEqub(e); setShowEqubModal(true); }} onDelete={(id) => setEqubs(p => p.filter(i => i.id !== id))} />}
-          
-          {activeTab === 'loans' && <LoanManager loans={loans} onPay={(id, amt) => logAction('Pay Loan')} onAdd={() => { setEditingLoan(null); setShowLoanModal(true); }} onEdit={(l) => { setEditingLoan(l); setShowLoanModal(true); }} onDelete={(id) => setLoans(p => p.filter(i => i.id !== id))} isAdmin={currentUser.role !== UserRole.MEMBER} />}
-
+          {activeTab === 'wallet' && <WalletView balances={balances} transactions={transactions} onTransfer={handleTransfer} onAddFunds={() => {}} />}
+          {activeTab === 'equb' && <EqubTracker groups={equbs} isAdmin={currentUser.role !== UserRole.MEMBER} onAdd={() => { setEditingEqub(null); setShowEqubModal(true); }} onSettle={handleEqubSettle} onEdit={(e) => { setEditingEqub(e); setShowEqubModal(true); }} onDelete={(id) => setEqubs(p => p.filter(i => i.id !== id))} />}
+          {activeTab === 'loans' && <LoanManager loans={loans} onPay={handleLoanPay} onAdd={() => { setEditingLoan(null); setShowLoanModal(true); }} onEdit={(l) => { setEditingLoan(l); setShowLoanModal(true); }} onDelete={(id) => setLoans(p => p.filter(i => i.id !== id))} isAdmin={currentUser.role !== UserRole.MEMBER} />}
           {activeTab === 'growth' && <GrowthManager goals={goals} planned={plannedPayments} onAddGoal={() => { setEditingGoal(null); setShowGoalModal(true); }} onEditGoal={(g) => { setEditingGoal(g); setShowGoalModal(true); }} onDeleteGoal={(id) => setGoals(p => p.filter(g => g.id !== id))} isAdmin={currentUser.role !== UserRole.MEMBER} />}
-          
           {activeTab === 'chat' && <ChatCenter messages={messages} currentUser={currentUser} onSendMessage={(t,c) => setMessages(p => [...p, { id: Math.random().toString(), senderId: currentUser.id, senderName: currentUser.name, text: t, timestamp: new Date().toISOString(), channel: c }])} />}
-          {activeTab === 'schedule' && <ScheduleView equbs={equbs} loans={loans} planned={plannedPayments} onPayLoan={(id, amt) => logAction('Pay Loan')} />}
+          {activeTab === 'schedule' && <ScheduleView equbs={equbs} loans={loans} planned={plannedPayments} onPayLoan={handleLoanPay} />}
           {activeTab === 'reports' && <Reports transactions={transactions} loans={loans} equbs={equbs} goals={goals} />}
-          {activeTab === 'accounting' && <AccountingManager transactions={transactions} users={users} currentUser={currentUser} onSendReport={(r) => logAction('Send Report')} onApproveReport={(id) => logAction('Approve Report')} sentReports={sentReports} />}
-          
-          {activeTab === 'users' && <UsersManager users={users} currentUser={currentUser} onUpdateUser={(u) => logAction('Update Partner')} onAddPartner={(u) => logAction('Add Partner')} onDelete={(id) => logAction('Revoke Access')} />}
+          {activeTab === 'accounting' && <AccountingManager transactions={transactions} users={users} currentUser={currentUser} onSendReport={(r) => { setSentReports(p => [r, ...p]); logAction('Dispatch Report', `${r.month} ${r.year}`); }} onApproveReport={(id) => { setSentReports(p => p.map(r => r.id === id ? { ...r, status: 'SENT', approvedById: currentUser.id, approvedAt: new Date().toISOString() } : r)); logAction('Authorized Ledger Node', id); }} sentReports={sentReports} />}
+          {activeTab === 'assets' && <AssetsManager assets={assets} onAdd={(a) => { setAssets(p => [a, ...p]); logAction('Added Asset', a.name); }} onUpdate={(a) => { setAssets(p => p.map(i => i.id === a.id ? a : i)); logAction('Updated Asset', a.name); }} onDelete={(id) => setAssets(p => p.filter(i => i.id !== id))} isAdmin={currentUser.role !== UserRole.MEMBER} />}
+          {activeTab === 'users' && <UsersManager users={users} currentUser={currentUser} onUpdateUser={(u) => setUsers(p => p.map(i => i.id === u.id ? u : i))} onAddPartner={(u) => setUsers(p => [...p, u])} onDelete={(id) => setUsers(p => p.filter(i => i.id !== id))} />}
 
           {activeTab === 'settings' && (
             <div className="max-w-4xl mx-auto space-y-10 text-left">
-               <div className={`p-12 rounded-[3.5rem] border shadow-2xl transition-all ${theme === 'dark' ? 'bg-slate-900 border-indigo-500/20' : 'bg-white border-slate-200'}`}>
-                  <h3 className={`text-4xl font-black tracking-tighter uppercase mb-8 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Zone Command</h3>
-                  
-                  <div className={`p-8 rounded-[2.5rem] text-left mb-8 flex items-center justify-between border ${theme === 'dark' ? 'bg-slate-950 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
-                     <div><p className={`text-2xl font-black ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{currentUser.name}</p></div>
+               <div className="p-12 bg-white dark:bg-slate-900 rounded-[3.5rem] border border-slate-200 dark:border-white/5 shadow-2xl transition-all">
+                  <h3 className="text-4xl font-black tracking-tighter uppercase mb-8 dark:text-white">Zone Command</h3>
+                  <div className="p-8 rounded-[2.5rem] text-left mb-8 flex items-center justify-between border bg-slate-50 dark:bg-slate-950 dark:border-white/5">
+                     <div>
+                        <p className="text-[10px] font-black text-indigo-600 uppercase mb-1">Authenticated Partner</p>
+                        <p className="text-2xl font-black dark:text-white">{currentUser.name}</p>
+                        <p className="text-xs font-medium text-slate-500 uppercase tracking-widest">{currentUser.role.replace('_', ' ')}</p>
+                     </div>
                   </div>
-                  <button onClick={() => setCurrentUser(null)} className="w-full py-6 bg-rose-600 text-white rounded-[2rem] font-black text-xl uppercase">Exit Zone</button>
+                  <button onClick={() => setCurrentUser(null)} className="w-full py-6 bg-rose-600 text-white rounded-[2rem] font-black text-xl uppercase tracking-widest hover:bg-rose-700 transition-all active:scale-95 shadow-xl">Terminate Session</button>
                </div>
             </div>
           )}
         </div>
       </Layout>
+
+      {/* Interaction Overlays - Rendered outside Layout for global z-index management */}
+      <JoystickMenu onAction={handleJoystickAction} />
+      
+      {isLocked && <SecurityOverlay onUnlock={(enteredPin) => { if (enteredPin === currentUser.pin) setIsLocked(false); else setAuthError('Invalid PIN'); }} error={authError} />}
+      
+      {confirmModal.isOpen && (
+        <ConfirmationModal 
+          isOpen={confirmModal.isOpen} 
+          onClose={() => setConfirmModal(prev => ({...prev, isOpen: false}))} 
+          onConfirm={confirmModal.onConfirm} 
+          title={confirmModal.title} 
+          message={confirmModal.message} 
+          type={confirmModal.type} 
+        />
+      )}
+      
+      {showTransactionModal && <TransactionModal isOpen={showTransactionModal} onClose={() => { setShowTransactionModal(false); setEditingTransaction(null); }} onSubmit={handleTransactionSubmit} initialType={modalType} editingTransaction={editingTransaction} />}
+      {showEqubModal && <EqubModal isOpen={showEqubModal} onClose={() => { setShowEqubModal(false); setEditingEqub(null); }} onSubmit={(data) => { setEqubs(prev => editingEqub ? prev.map(e => e.id === editingEqub.id ? data : e) : [data, ...prev]); setShowEqubModal(false); notify("Circle Updated"); }} editingEqub={editingEqub} />}
+      {showLoanModal && <LoanModal isOpen={showLoanModal} onClose={() => { setShowLoanModal(false); setEditingLoan(null); }} onSubmit={(data) => { setLoans(prev => editingLoan ? prev.map(l => l.id === editingLoan.id ? data : l) : [data, ...prev]); setShowLoanModal(false); notify("Loan Indexed"); }} editingLoan={editingLoan} />}
+      {showGoalModal && <GoalModal isOpen={showGoalModal} onClose={() => { setShowGoalModal(false); setEditingGoal(null); }} onSubmit={(data) => { setGoals(prev => editingGoal ? prev.map(g => g.id === editingGoal.id ? data : g) : [data, ...prev]); setShowGoalModal(false); notify("Goal Targeted"); }} editingGoal={editingGoal} />}
+      {showScanner && <CameraScanner onClose={() => setShowScanner(false)} onParsed={(data) => { handleTransactionSubmit({ ...data, note: `Vision Scan: ${data.vendor || 'Receipt'}` }); setShowScanner(false); }} />}
     </>
   );
 };
