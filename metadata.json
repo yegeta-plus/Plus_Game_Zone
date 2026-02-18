@@ -1,0 +1,28 @@
+{
+  "name": "Plus Game Zone",
+  "short_name": "PlusZone",
+  "description": "A professional financial management and growth hub for Plus Game Zone, featuring sales tracking, expense management, and AI-powered insights.",
+  "version": "1.0.0",
+  "start_url": "./index.html",
+  "theme_color": "#4f46e5",
+  "background_color": "#0f172a",
+  "display": "standalone",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "logo.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "logo.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
