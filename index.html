@@ -14,10 +14,19 @@
     <link rel="icon" type="image/svg+xml" href="logo.svg">
     <link rel="apple-touch-icon" href="logo.svg">
     
-    <!-- Environment Shim -->
+    <!-- Environment & Error Shim -->
     <script>
-      window.process = window.process || {};
-      window.process.env = window.process.env || {};
+      window.process = { 
+        env: { 
+          NODE_ENV: 'production'
+        } 
+      };
+      window.addEventListener('error', function(e) {
+        console.error('Runtime Error:', e.message, 'at', e.filename, ':', e.lineno);
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        console.error('Unhandled Promise Rejection:', e.reason);
+      });
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -34,7 +43,6 @@
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Loading fallback */
         .loading-screen {
             display: flex;
             flex-direction: column;
@@ -43,29 +51,27 @@
             height: 100vh;
             background: #0f172a;
             color: white;
-            font-family: 'Inter', sans-serif;
         }
     </style>
 <script type="importmap">
 {
   "imports": {
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react-dom": "https://esm.sh/react-dom@^19.2.3",
-    "@google/genai": "https://esm.sh/@google/genai@^1.38.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "recharts": "https://esm.sh/recharts@^3.7.0"
+    "react/": "https://esm.sh/react@19.0.0/",
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom/": "https://esm.sh/react-dom@19.0.0/",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "@google/genai": "https://esm.sh/@google/genai@1.3.1",
+    "lucide-react": "https://esm.sh/lucide-react@0.469.0",
+    "recharts": "https://esm.sh/recharts@2.15.0"
   }
 }
 </script>
 </head>
 <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-500">
     <div id="root">
-        <!-- Initial Loading State -->
         <div class="loading-screen">
-            <div style="width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.1); border-top-color: #6366f1; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-            <p style="margin-top: 20px; font-weight: 900; font-size: 10px; text-transform: uppercase; letter-spacing: 0.2em; color: #6366f1;">Plus Zone Initializing...</p>
+            <div style="width: 48px; height: 48px; border: 4px solid rgba(99,102,241,0.1); border-top-color: #6366f1; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+            <p style="margin-top: 24px; font-weight: 900; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3em; color: #6366f1;">Plus Zone Interface Loading</p>
         </div>
     </div>
     
@@ -73,6 +79,7 @@
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 
+    <!-- The data-type="module" is critical for @babel/standalone to handle imports correctly -->
     <script type="text/babel" data-type="module" data-presets="react,typescript" src="./index.tsx"></script>
 </body>
 </html>

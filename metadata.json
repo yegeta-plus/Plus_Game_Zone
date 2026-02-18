@@ -23,6 +23,8 @@
     }
   ],
   "requestFramePermissions": [
-    "camera"
+    "camera",
+    "microphone",
+    "geolocation"
   ]
 }
