@@ -363,7 +363,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, isMasked }) => {
                   </div>
                   <ol className="text-xs space-y-3 font-medium text-slate-600 dark:text-slate-400 text-left">
                     <li className="flex gap-2"><span>1.</span> Look at the right side of your address bar.</li>
-                    <li className="flex gap-2 text-left"><span>2.</span> Click the <Download size={14} className="inline text-amber-500" /> icon or go to <strong>Settings > Save and Share > Install</strong>.</li>
+                    <li className="flex gap-2 text-left"><span>2.</span> Click the <Download size={14} className="inline text-amber-500" /> icon or go to <strong>Settings &gt; Save and Share &gt; Install</strong>.</li>
                   </ol>
                 </div>
               </div>
